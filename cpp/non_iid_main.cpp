@@ -12,6 +12,8 @@
 #include <getopt.h>
 #include <limits.h>
 
+#include <algorithm>
+
 
 [[ noreturn ]] void print_usage() {
 	printf("Usage is: ea_non_iid [-i|-c] [-a|-t] [-v] [-l <index>,<samples> ] <file_name> [bits_per_symbol]\n\n");
@@ -44,6 +46,45 @@
 	exit(-1);
 }
 
+double estimate(const data_t& data, int verbose, bool useBinary)
+{
+	byte* symbols = useBinary ? data.bsymbols : data.symbols;
+	long len = useBinary ? data.blen : data.len;
+	int alpha_size = useBinary ? 2 : data.alph_size;
+	const char* label = useBinary ? "Bitstring" : "Literal";
+
+	std::vector<double> entropies;
+
+	auto tmp1 = 0.0;
+	auto tmp2 = 0.0;
+
+	if(verbose <= 1) {
+		printf("\nRunning non-IID tests...\n\n");
+		printf(">> Running Most Common Value Estimate...\n");
+	}
+	entropies.push_back(most_common(symbols, len, alpha_size, verbose, label));
+
+	if(alpha_size == 2) {
+		if(verbose <= 1) printf("\n>> Running Entropic Statistic Estimates (bit strings only)...\n");
+		entropies.push_back(collision_test(symbols, len, verbose, label));
+		entropies.push_back(markov_test(symbols, len, verbose, label));
+		entropies.push_back(compression_test(symbols, len, verbose, label));
+	}
+
+	if(verbose <= 1) printf("\n>> Running Tuple Estimates...\n");	
+	SAalgs(symbols, len, alpha_size, tmp1, tmp2, verbose, label);
+	entropies.push_back(tmp1);
+	entropies.push_back(tmp2);
+
+	if(verbose <= 1) printf("\n>> Running Predictor Estimates...\n");
+	entropies.push_back(multi_mcw_test(symbols, len, alpha_size, verbose, label));
+	entropies.push_back(lag_test(symbols, len, alpha_size, verbose, label));
+	entropies.push_back(multi_mmc_test(symbols, len, alpha_size, verbose, label));
+	entropies.push_back(LZ78Y_test(symbols, len, alpha_size, verbose, label));
+
+	return *std::min_element(entropies.begin(), entropies.end());
+}
+
 int main(int argc, char* argv[]){
 	bool initial_entropy, all_bits;
 	int verbose = 0;
@@ -60,26 +101,26 @@ int main(int argc, char* argv[]){
 
 	data.word_size = 0;
 
-        initial_entropy = true;
-        all_bits = true;
+	initial_entropy = true;
+	all_bits = true;
 
-        while ((opt = getopt(argc, argv, "icatvl:")) != -1) {
-                switch(opt) {
-                        case 'i':
-                                initial_entropy = true;
-                                break;
-                        case 'c':
-                                initial_entropy = false;
-                                break;
-                        case 'a':
-                                all_bits = true;
-                                break;
-                        case 't':
-                                all_bits = false;
-                                break;
-                        case 'v':
-                                verbose++;
-                                break;
+	while ((opt = getopt(argc, argv, "icatvl:")) != -1) {
+		switch(opt) {
+			case 'i':
+					initial_entropy = true;
+					break;
+			case 'c':
+					initial_entropy = false;
+					break;
+			case 'a':
+					all_bits = true;
+					break;
+			case 't':
+					all_bits = false;
+					break;
+			case 'v':
+					verbose++;
+					break;
 			case 'l':
 				inint = strtoull(optarg, &nextOption, 0);
 				if((inint > ULONG_MAX) || (errno == EINVAL) || (nextOption == NULL) || (*nextOption != ',')) {
@@ -95,13 +136,13 @@ int main(int argc, char* argv[]){
 				}
 				subsetSize = inint;
 				break;
-                        default:
-                                print_usage();
-                }
-        }
+			default:
+					print_usage();
+			}
+	}
 
-        argc -= optind;
-        argv += optind;
+	argc -= optind;
+	argv += optind;
 
 	// Parse args
 	if((argc != 1) && (argc != 2)){
@@ -137,6 +178,7 @@ int main(int argc, char* argv[]){
 	}
 
 	if(!all_bits && (data.blen > MIN_SIZE)) data.blen = MIN_SIZE;
+	if(!all_bits && (data.len > MIN_SIZE)) data.len = MIN_SIZE;
 
 	if((verbose>0) && ((data.alph_size > 2) || !initial_entropy)) printf("Number of Binary Symbols: %ld\n", data.blen);
 	if(data.len < MIN_SIZE) printf("\n*** Warning: data contains less than %d samples ***\n\n", MIN_SIZE);
@@ -149,165 +191,12 @@ int main(int argc, char* argv[]){
 	H_original = data.word_size;
 	H_bitstring = 1.0;
 
-	if(verbose <= 1) {
-		printf("\nRunning non-IID tests...\n\n");
-		printf("Running Most Common Value Estimate...\n");
-	}
-
-	// Section 6.3.1 - Estimate entropy with Most Common Value
 	if(((data.alph_size > 2) || !initial_entropy)) {
-		ret_min_entropy = most_common(data.bsymbols, data.blen, 2, verbose, "Bitstring");
-		if(verbose == 1) printf("\tMost Common Value Estimate (bit string) = %f / 1 bit(s)\n", ret_min_entropy);
-		H_bitstring = min(ret_min_entropy, H_bitstring);
+		H_bitstring = min(H_bitstring, estimate(data, verbose, true));
 	}
 
 	if(initial_entropy) {
-		ret_min_entropy = most_common(data.symbols, data.len, data.alph_size, verbose, "Literal");
-		if(verbose == 1) printf("\tMost Common Value Estimate = %f / %d bit(s)\n", ret_min_entropy, data.word_size);
-		H_original = min(ret_min_entropy, H_original);
-	}
-
-	if(verbose <= 1) printf("\nRunning Entropic Statistic Estimates (bit strings only)...\n");
-
-	// Section 6.3.2 - Estimate entropy with Collision Test (for bit strings only)
-	if(((data.alph_size > 2) || !initial_entropy)) {
-		ret_min_entropy = collision_test(data.bsymbols, data.blen, verbose, "Bitstring");
-		if(verbose == 1) printf("\tCollision Test Estimate (bit string) = %f / 1 bit(s)\n", ret_min_entropy); 
-		H_bitstring = min(ret_min_entropy, H_bitstring);
-	}
-
-	if(initial_entropy && (data.alph_size == 2)) {
-		ret_min_entropy = collision_test(data.symbols, data.len, verbose, "Literal");
-		if(verbose == 1) printf("\tCollision Test Estimate = %f / 1 bit(s)\n", ret_min_entropy);
-		H_original = min(ret_min_entropy, H_original);
-	}
-
-	// Section 6.3.3 - Estimate entropy with Markov Test (for bit strings only)
-	if(((data.alph_size > 2) || !initial_entropy)) {
-		ret_min_entropy = markov_test(data.bsymbols, data.blen, verbose, "Bitstring");
-		if(verbose == 1) printf("\tMarkov Test Estimate (bit string) = %f / 1 bit(s)\n", ret_min_entropy); 
-		H_bitstring = min(ret_min_entropy, H_bitstring);
-	}
-
-	if(initial_entropy && (data.alph_size == 2)) {
-		ret_min_entropy = markov_test(data.symbols, data.len, verbose, "Literal");
-		if(verbose == 1) printf("\tMarkov Test Estimate = %f / 1 bit(s)\n", ret_min_entropy);
-		H_original = min(ret_min_entropy, H_original);
-	}
-
-	// Section 6.3.4 - Estimate entropy with Compression Test (for bit strings only)
-	if(((data.alph_size > 2) || !initial_entropy)) {
-		ret_min_entropy = compression_test(data.bsymbols, data.blen, verbose, "Bitstring");
-		if(ret_min_entropy >= 0){
-			if(verbose == 1) printf("\tCompression Test Estimate (bit string) = %f / 1 bit(s)\n", ret_min_entropy); 
-			H_bitstring = min(ret_min_entropy, H_bitstring);
-		}
-	}
-
-	if(initial_entropy && (data.alph_size == 2)) {
-		ret_min_entropy = compression_test(data.symbols, data.len, verbose, "Literal");
-		if(verbose == 1) printf("\ttCompression Test Estimate = %f / 1 bit(s)\n", ret_min_entropy);
-		H_original = min(ret_min_entropy, H_original);
-	}
-
-	if(verbose <= 1) printf("\nRunning Tuple Estimates...\n");
-
-	// Section 6.3.5 - Estimate entropy with t-Tuple Test
-
-	if(((data.alph_size > 2) || !initial_entropy)) {
-		SAalgs(data.bsymbols, data.blen, 2, bin_t_tuple_res, bin_lrs_res, verbose, "Bitstring");
-		if(bin_t_tuple_res >= 0.0) {
-			if(verbose == 1) printf("\tT-Tuple Test Estimate (bit string) = %f / 1 bit(s)\n", bin_t_tuple_res);
-			H_bitstring = min(bin_t_tuple_res, H_bitstring);
-		}
-	}
-
-	if(initial_entropy){
-		SAalgs(data.symbols, data.len, data.alph_size, t_tuple_res, lrs_res, verbose, "Literal");
-		if(t_tuple_res >= 0.0) {
-			if(verbose == 1) printf("\tT-Tuple Test Estimate = %f / %d bit(s)\n", t_tuple_res, data.word_size);
-			H_original = min(t_tuple_res, H_original);
-			}
-	}
-
-	// Section 6.3.6 - Estimate entropy with LRS Test
-	if(((data.alph_size > 2) || !initial_entropy)) {
-		if(verbose == 1) printf("\tLRS Test Estimate (bit string) = %f / 1 bit(s)\n", bin_lrs_res);
-		H_bitstring = min(bin_lrs_res, H_bitstring);
-	}
-
-	if(initial_entropy) {
-		if(verbose == 1) printf("\tLRS Test Estimate = %f / %d bit(s)\n", lrs_res, data.word_size);
-		H_original = min(lrs_res, H_original);
-	}
-
-	if(verbose <= 1) printf("\nRunning Predictor Estimates...\n");
-
-	if(((data.alph_size > 2) || !initial_entropy)) {
-		// Section 6.3.7 - Estimate entropy with Multi Most Common in Window Test
-		ret_min_entropy = multi_mcw_test(data.bsymbols, data.blen, 2, verbose, "Bitstring");
-		if(ret_min_entropy >= 0){
-			if(verbose == 1) printf("\tMulti Most Common in Window (MultiMCW) Prediction Test Estimate (bit string) = %f / 1 bit(s)\n", ret_min_entropy);
-			H_bitstring = min(ret_min_entropy, H_bitstring);
-		}
-	}
-
-	if(initial_entropy){
-		ret_min_entropy = multi_mcw_test(data.symbols, data.len, data.alph_size, verbose, "Literal");
-		if(ret_min_entropy >= 0){
-			if(verbose == 1) printf("\tMulti Most Common in Window (MultiMCW) Prediction Test Estimate = %f / %d bit(s)\n", ret_min_entropy, data.word_size);
-			H_original = min(ret_min_entropy, H_original);
-		}
-	}
-
-	// Section 6.3.8 - Estimate entropy with Lag Prediction Test
-	if(((data.alph_size > 2) || !initial_entropy)) {
-		ret_min_entropy = lag_test(data.bsymbols, data.blen, 2, verbose, "Bitstring");
-		if(ret_min_entropy >= 0){
-			if(verbose == 1) printf("\tLag Prediction Test Estimate (bit string) = %f / 1 bit(s)\n", ret_min_entropy);
-			H_bitstring = min(ret_min_entropy, H_bitstring);
-		}
-	}
-
-	if(initial_entropy){
-		ret_min_entropy = lag_test(data.symbols, data.len, data.alph_size, verbose, "Literal");
-		if(ret_min_entropy >= 0){
-			if(verbose == 1) printf("\tLag Prediction Test Estimate = %f / %d bit(s)\n", ret_min_entropy, data.word_size);
-			H_original = min(ret_min_entropy, H_original);
-		}
-	}
-
-	// Section 6.3.9 - Estimate entropy with Multi Markov Model with Counting Test (MultiMMC)
-	if(((data.alph_size > 2) || !initial_entropy)) {
-		ret_min_entropy = multi_mmc_test(data.bsymbols, data.blen, 2, verbose, "Bitstring");
-		if(ret_min_entropy >= 0){
-			if(verbose == 1) printf("\tMulti Markov Model with Counting (MultiMMC) Prediction Test Estimate (bit string) = %f / 1 bit(s)\n", ret_min_entropy);
-			H_bitstring = min(ret_min_entropy, H_bitstring);
-		}
-	}
-	if(initial_entropy){
-		ret_min_entropy = multi_mmc_test(data.symbols, data.len, data.alph_size, verbose, "Literal");
-		if(ret_min_entropy >= 0){
-			if(verbose == 1) printf("\tMulti Markov Model with Counting (MultiMMC) Prediction Test Estimate = %f / %d bit(s)\n", ret_min_entropy, data.word_size);
-			H_original = min(ret_min_entropy, H_original);
-		}
-	}
-
-	// Section 6.3.10 - Estimate entropy with LZ78Y Test
-	if(((data.alph_size > 2) || !initial_entropy)) {
-		ret_min_entropy = LZ78Y_test(data.bsymbols, data.blen, 2, verbose, "Bitstring");
-		if(ret_min_entropy >= 0){
-			if(verbose == 1) printf("\tLZ78Y Prediction Test Estimate (bit string) = %f / 1 bit(s)\n", ret_min_entropy);
-			H_bitstring = min(ret_min_entropy, H_bitstring);
-		}
-	}
-
-	if(initial_entropy){
-		ret_min_entropy = LZ78Y_test(data.symbols, data.len, data.alph_size, verbose, "Literal");
-		if(ret_min_entropy >= 0){
-			if(verbose == 1) printf("\tLZ78Y Prediction Test Estimate = %f / %d bit(s)\n", ret_min_entropy, data.word_size);
-			H_original = min(ret_min_entropy, H_original);
-		}
+		H_original = min(H_original, estimate(data, verbose, false));
 	}
 
 	if(verbose <= 1) {

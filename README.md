@@ -18,6 +18,11 @@ The resulting binary is linked with bzlib and divsufsort, so these libraries (an
 
 See [the wiki](https://github.com/usnistgov/SP800-90B_EntropyAssessment/wiki/Installing-libdivsufsort) for some distribution-specific instructions on installing divsufsort.
 
+### In Ubuntu
+```bash
+$ sudo apt install libbz2-dev libdivsufsort-dev
+```
+
 ## Overview
 
 * `bin/` has binary files for testing
