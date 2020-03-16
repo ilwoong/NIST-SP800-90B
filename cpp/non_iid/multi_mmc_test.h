@@ -150,8 +150,15 @@ double multi_mmc_test(byte *data, long len, int alph_size, const int verbose, co
 	long i, d, N, C, run_len, max_run_len;
 	long scoreboard[D_MMC] = {0};
 	array<byte, D_MMC> x;
+   
+   auto elapsed = omp_get_wtime();
 
-	if(alph_size == 2) return binaryMultiMMCPredictionEstimate(data, len, verbose, label);
+	if(alph_size == 2) {
+      auto entropy = binaryMultiMMCPredictionEstimate(data, len, verbose, label);
+      elapsed = omp_get_wtime() - elapsed;
+      std::cout << label << " MultiMMC entropy = " << entropy << ", elapsed = " << elapsed << std::endl;;
+      return entropy;
+   }
 
 	array<map<array<byte, D_MMC>, PostfixDictionary>, D_MMC> M;
 
@@ -243,5 +250,9 @@ double multi_mmc_test(byte *data, long len, int alph_size, const int verbose, co
 		}
 	}
 
-	return(predictionEstimate(C, N, max_run_len, alph_size, "MultiMMC", verbose, label));
+   auto entropy = predictionEstimate(C, N, max_run_len, alph_size, "MultiMMC", verbose, label);
+   elapsed = omp_get_wtime() - elapsed;
+   std::cout << label << " MultiMMC Prediction Estimate: entropy = " << entropy << ", elapsed = " << elapsed << std::endl;
+
+	return entropy;
 }

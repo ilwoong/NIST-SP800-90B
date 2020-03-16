@@ -64,6 +64,8 @@ void calcSALCP(const byte text[], long int n, vector<saidx_t> &sa, vector<saidx_
  * http://www.untruth.org/~josh/sp80090b/Kaufer%20Further%20Improvements%20for%20SP%20800-90B%20Tuple%20Counts.pdf
  */
 void SAalgs(const byte text[], long int n, int k, double &t_tuple_res, double &lrs_res, const int verbose, const char *label) {
+	auto elapsed = omp_get_wtime();
+
 	vector <saidx_t> sa(n+1, -1); //each value is at most n-1
 	vector <saidx_t> L(n+2, -1); //each value is at most n-1
 
@@ -274,6 +276,11 @@ void SAalgs(const byte text[], long int n, int k, double &t_tuple_res, double &l
 		lrs_res = -1.0;
 		return;
 	}
+
+	elapsed = omp_get_wtime() - elapsed;
+    std::cout << label << " Tuple Estimate: elapsed = " << elapsed << std::endl;
+	std::cout << label << " t-Tuple Estimate: entropy = " << t_tuple_res << std::endl;
+	std::cout << label << " LRS Estimate: entropy = " << lrs_res << std::endl;
 
 	return;
 }

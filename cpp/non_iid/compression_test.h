@@ -100,6 +100,8 @@ double compression_test(byte* data, long len, const int verbose, const char *lab
 	double p, entEst;
 	double ldomain, hdomain, lbound, hbound, lvalue, hvalue, pVal, lastP;
 
+	double elapsed = omp_get_wtime();
+
 	d = 1000;
 	num_blocks = len/b;
 
@@ -241,5 +243,8 @@ double compression_test(byte* data, long len, const int verbose, const char *lab
 		printf("%s Compression Estimate: min entropy = %.17g\n", label, entEst);
 	}
 
-        return entEst;
+	elapsed = omp_get_wtime() - elapsed;
+    std::cout << label << " Compression Estimate: entropy = " << entEst << ", elapsed = " << elapsed << std::endl;
+
+    return entEst;
 }

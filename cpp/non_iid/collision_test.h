@@ -23,6 +23,8 @@ double collision_test(byte* data, long len, const int verbose, const char *label
         double hdomain, ldomain;
 	double entEst;
 
+	auto elapsed = omp_get_wtime();
+
 	i = 0;
 	v = 0;
 	s = 0.0;
@@ -157,6 +159,9 @@ double collision_test(byte* data, long len, const int verbose, const char *label
 		printf("%s Collision Estimate: p = %.17g\n", label, p);
 		printf("%s Collision Estimate: min entropy = %.17g\n", label, entEst);
 	}
+
+	elapsed = omp_get_wtime() - elapsed;
+    std::cout << label << " Collision Estimate: entropy = " << entEst << ", elapsed = " << elapsed << std::endl;
 
 	return entEst;
 }

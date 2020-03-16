@@ -7,6 +7,8 @@ double markov_test(byte* data, long len, const int verbose, const char *label){
 	long i, C_0, C_1, C_00, C_01, C_10, C_11;
 	double H_min, tmp_min_entropy, P_0, P_1, P_00, P_01, P_10, P_11, entEst;
 
+	auto elapsed = omp_get_wtime();
+
 	C_0 = 0.0;
 	C_00 = 0.0;
 	C_10 = 0.0;
@@ -90,6 +92,9 @@ double markov_test(byte* data, long len, const int verbose, const char *label){
 		printf("%s Markov Estimate: p-hat_max = %.17g\n", label, pow(2.0, -H_min));
 		printf("%s Markov Estimate: min entropy = %.17g\n", label, entEst);
 	}
+
+	elapsed = omp_get_wtime() - elapsed;
+    std::cout << label << " Markov Estimate: entropy = " << entEst << ", elapsed = " << elapsed << std::endl;
 
 	return entEst;
 }

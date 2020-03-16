@@ -8,6 +8,8 @@ double lag_test(byte *data, long len, int alph_size, const int verbose, const ch
 	int winner; 
 	long i, d, N, C, run_len, max_run_len;
 	long scoreboard[D_LAG] = {0};
+
+	auto elapsed = omp_get_wtime();
 	
 	if(len < 2){	
 		printf("\t*** Warning: not enough samples to run lag test (need more than %d) ***\n", 2);
@@ -37,5 +39,9 @@ double lag_test(byte *data, long len, int alph_size, const int verbose, const ch
 		}
 	}
 
-	return(predictionEstimate(C, N, max_run_len, alph_size, "Lag", verbose, label));
+	auto entropy = predictionEstimate(C, N, max_run_len, alph_size, "Lag", verbose, label);
+    elapsed = omp_get_wtime() - elapsed;
+    std::cout << label << " Lag Prediction Estimate: entropy = " << entropy << ", elapsed = " << elapsed << std::endl;
+
+	return entropy;
 }

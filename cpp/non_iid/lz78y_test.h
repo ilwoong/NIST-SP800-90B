@@ -18,6 +18,8 @@ static double binaryLZ78YPredictionEstimate(const byte *S, long L, const int ver
    assert(L-B > 2);
    assert(B < 32); //B < 32 to make the bit shifts well defined
 
+   auto elapsed = omp_get_wtime();
+
    //Initialize the data structure tables
    for(j=0; j< B; j++) {
       //For a length m prefix, we need 2^m sets of length 2 arrays.
@@ -118,7 +120,14 @@ double LZ78Y_test(byte *data, long len, int alph_size, const int verbose, const 
 	long i, j, N, C, run_len, max_run_len;
 	array<byte, B> x;
 
-	if(alph_size==2) return binaryLZ78YPredictionEstimate(data, len, verbose, label);
+   auto elapsed = omp_get_wtime();
+
+	if(alph_size==2) {
+      auto entropy = binaryLZ78YPredictionEstimate(data, len, verbose, label);
+      elapsed = omp_get_wtime() - elapsed;
+      std::cout << label << " LZ78Y entropy = " << entropy << ", elapsed = " << elapsed << std::endl;
+      return entropy;
+   }
 
 	array<map<array<byte, B>, PostfixDictionary>, B> D;
 
@@ -194,5 +203,9 @@ double LZ78Y_test(byte *data, long len, int alph_size, const int verbose, const 
 		else run_len = 0;
 	}
 
-	return(predictionEstimate(C, N, max_run_len, alph_size, "LZ78Y", verbose, label));
+   auto entropy = predictionEstimate(C, N, max_run_len, alph_size, "LZ78Y", verbose, label);
+	elapsed = omp_get_wtime() - elapsed;
+   std::cout << label << " LZ78Y Prediction Estimate: entropy = " << entropy << ", elapsed = " << elapsed << std::endl;
+
+	return entropy;
 }

@@ -9,6 +9,8 @@ double most_common(byte* data, const long len, const int alph_size, const int ve
 	double pmax, ubound;
 	double entEst;
 
+	auto elapsed = omp_get_wtime();
+
 	for(i = 0; i < alph_size; i++) counts[i] = 0;
 	for (i = 0; i < len; i++) counts[data[i]]++;
 
@@ -28,6 +30,9 @@ double most_common(byte* data, const long len, const int alph_size, const int ve
 		printf("%s Most Common Value Estimate: p_u = %.17g\n", label, ubound);
 		printf("%s Most Common Value Estimate: min entropy = %.17g\n", label, entEst);
 	}
+
+	elapsed = omp_get_wtime() - elapsed;
+    std::cout << label << " MCV Estimate: entropy = " << entEst << ", elapsed = " << elapsed << std::endl;
 
 	return entEst;
 }
